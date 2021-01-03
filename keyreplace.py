@@ -14,8 +14,8 @@ class bcolors:
 
 def usage():
     usage_str = '''
-        [Usage]: python3 keyreplace find key path keyfile
-                 python3 keyreplace replace key path keyfile
+        [Usage]: python3 keyreplace find key root keyfile
+                 python3 keyreplace replace key root keyfile
                 1.find all keys and record them in keyfile
                 2.comment keys in keyfile that do not want to be replaced
                 3.replace keys accroding to keyfile
@@ -26,15 +26,13 @@ def usage():
                 ;line start with ';' is a commment line
 
                 ;line start with 'dir:' is a dir that has key in its name
-                dir: path/tutu/
+                dir:cnt:path/tutu/
 
                 ;line start with 'file:' is a file that has key in its name
-                file: path/tutu/tutu.txt
+                file:cnt:path/tutu/tutu.txt
 
-                ;line start with 'text:' is a key in file's content,follow by a newline that show 
-                ;the content of that line
-                text: path/tutu/tutu.txt 10(linenum) 33(posinline) 
-                'this is the line that contained tutu'
+                ;line start with 'text:' is a key in file's content
+                text:cnt:path/tutu/tutu.txt:10(linenum):33(pos):'this is the line that contained tutu'
     '''
     print(bcolors.OKGREEN + usage_str +bcolors.ENDC)
     print(bcolors.OKGREEN + keyfile_str +bcolors.ENDC)
@@ -55,13 +53,23 @@ def countDir(path):
                 files_all.append(os.path.join(root,f))
     return dirs_all, files_all
 
-def fgrep(key, path):
-    #-bno
-    res = os.popen('rg -bn '+key+ ' '+path).readlines()
+def pathdepth(root, path):
+    a = os.path.abspath(root)
+    b = os.path.abspath(path)
+    return len(a.split('/')) - len(b.split('/'))
+
+def dgrep(key, root, path):
+    if(pathdepth(root, path) < 2):
+        res = os.popen('rg -bn --max-depth 1 '+key+ ' '+path).readlines()
+    elif(pathdepth(root, path) == 2):
+        res = os.popen('rg -bn '+key+ ' '+path).readlines()
+    else:
+        pass
     return res
 
-def findkey(key, path, keyfile):
-    dirs, files = countDir(path)
+
+def findkey(key, root, keyfile):
+    dirs, files = countDir(root)
     dirnum, filenum = len(dirs), len(files)
     print("total dirs count:", dirnum)
     print("total files count:", filenum)
@@ -82,16 +90,18 @@ def findkey(key, path, keyfile):
 
     print(bcolors.OKGREEN + "find key in file text" +bcolors.ENDC)
     texthit = []
-    for i in tqdm(range(filenum)): 
-        text = fgrep(key, files[i])
+    for i in tqdm(range(dirnum)): 
+        text = dgrep(key, root, dirs[i])
         texthit.extend(text)
     print("find {} lines, that has {} in its text".format(len(texthit), key))
 
-    with open(keyfile, 'w+') as f:
+    with open(keyfile, 'w+') as kf:
         for i,d in enumerate(dirhit):
-            f.write("dir:{} {}\n".format(i,d))
+            kf.write("dir:{}:{}\n".format(i,d))
         for i,f in enumerate(filehit):
-            f.write("file:{} {}\n".format(i,f))
+            kf.write("file:{}:{}\n".format(i,f))
+        for i,t in enumerate(texthit):
+            kf.write("text:{}:{}\n".format(i,t))
 
 
 
@@ -103,14 +113,14 @@ if __name__ == "__main__":
 
     op = sys.argv[1]
     key = sys.argv[2]
-    path = sys.argv[3]
+    root = sys.argv[3]
     keyfile = sys.argv[4]
     if os.path.exists(keyfile):
         os.remove(keyfile)
 
     if op == 'find':
-        findkey(key, path, keyfile)
+        findkey(key, root, keyfile)
     elif op == 'replace':
-        replacekey(key, path, keyfile)
+        replacekey(key, root, keyfile)
     else:
         print(bcolors.FAIL + "err:only find/replace support" +bcolors.ENDC)
