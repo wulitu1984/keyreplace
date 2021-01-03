@@ -13,7 +13,7 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 def color_str(s, color):
-    return bcolors.OKGREEN + s +bcolors.ENDC 
+    return color + s +bcolors.ENDC 
 
 def rmEOL(s):
     return s.replace('\n', '').replace('\r', '')
@@ -26,8 +26,6 @@ def usage():
                 1.find all keys and record them in keyfile
                 2.comment keys in keyfile that do not want to be replaced
                 3.replace keys accroding to keyfile
-
-        [Note]: do not support dir/file name with whitespace !
     '''
     print(color_str(usage_str, bcolors.OKGREEN))
 
@@ -55,9 +53,9 @@ def relpathdepth(root, path):
 
 def dgrep(key, root, path):
     if(relpathdepth(root, path) < 2):
-        res = os.popen('rg -bn --max-depth 1 '+key+ ' '+path).readlines()
+        res = os.popen('rg -bn --max-depth 1 '+key+ ' "'+path+'"').readlines()
     elif(relpathdepth(root, path) == 2):
-        res = os.popen('rg -bn '+key+ ' '+path).readlines()
+        res = os.popen('rg -bn '+key+ + ' "'+path+'"').readlines()
     else:
         pass
     return res
@@ -85,6 +83,8 @@ def findkey(key, root, keyfile):
 
     print(color_str("find key in file text", bcolors.OKGREEN))
     texthit = []
+    text = dgrep(key, root, root)
+    texthit.extend(text)
     for i in tqdm(range(dirnum)): 
         text = dgrep(key, root, os.path.join(dirs[i][0],dirs[i][1]))
         texthit.extend(text)
@@ -127,18 +127,18 @@ def replacekey(key, root, keyfile):
     #replace text first, then filename, finally dirname
     print(color_str("replace key in file text", bcolors.OKGREEN))
     for i in tqdm(range(len(texthit))): 
-        os.system("sed -i '{}s/{}/{}/g' {}".format(texthit[i][0],old_key,key,texthit[i][1]))
+        os.system("sed -i '{}s/{}/{}/g' '{}'".format(texthit[i][0],old_key,key,texthit[i][1]))
 
     print(color_str("replace key in file name", bcolors.OKGREEN))
     for i in tqdm(range(len(filehit))): 
-        os.system("mv {} {}".format(os.path.join(filehit[i][0],filehit[i][1]), 
+        os.system("mv '{}' '{}'".format(os.path.join(filehit[i][0],filehit[i][1]), 
                                     os.path.join(filehit[i][0],filehit[i][1].replace(old_key,key))))
 
-    print(color_str("replace key in dir name[todo]", bcolors.FAIL))
+    print(color_str("replace key in dir name", bcolors.OKGREEN))
     #sort dirhit by path depth
     dirhit.sort(key=lambda elem: elem[0], reverse=True)
     for i in tqdm(range(len(dirhit))): 
-        os.system("mv {} {}".format(os.path.join(dirhit[i][0],dirhit[i][1]), 
+        os.system("mv '{}' '{}'".format(os.path.join(dirhit[i][0],dirhit[i][1]), 
                                     os.path.join(dirhit[i][0],dirhit[i][1].replace(old_key,key))))
 
 
@@ -157,4 +157,4 @@ if __name__ == "__main__":
     elif op == 'replace':
         replacekey(key, root, keyfile)
     else:
-        print(bcolors.FAIL + "err:only find/replace support" +bcolors.ENDC)
+        print(color_str("err:only find/replace support"), bcolors.FAIL)
