@@ -29,31 +29,6 @@ def usage():
     '''
     print(color_str(usage_str, bcolors.OKGREEN))
 
-
-def listDir(path):
-    dirs_all = []
-    dirs = os.listdir(path)
-    for d in dirs:
-        if((d.startswith('.') == False) and
-                (os.path.islink(os.path.join(path,d)) == False) and 
-                (os.path.isdir(os.path.join(path,d)) == True)):
-            dirs_all.append([path,d])
-    return dirs_all
-
-def walkDir(path):
-    dirs_all = []
-    files_all = []
-    for root, dirs, files in os.walk(path):
-        files = [f for f in files if not f[0] == '.']
-        dirs[:] = [d for d in dirs if not d[0] == '.']
-        for d in dirs:
-            if os.path.islink(os.path.join(root,d)) == False:
-                dirs_all.append([root,d])
-        for f in files:
-            if os.path.islink(os.path.join(root,f)) == False:
-                files_all.append([root,f])
-    return dirs_all, files_all
-
 def pathdepth(path):
     a = os.path.abspath(path)
     return len(a.split('/'))
@@ -61,20 +36,40 @@ def pathdepth(path):
 def relpathdepth(root, path):
     return pathdepth(path)-pathdepth(root)
 
+
+def walkDir(path):
+    dirs_all = []
+    files_all = []
+    dirs_l2 = []
+    for root, dirs, files in os.walk(path):
+        files = [f for f in files if not f[0] == '.']
+        dirs[:] = [d for d in dirs if not d[0] == '.']
+        for d in dirs:
+            if os.path.islink(os.path.join(root,d)) == False:
+                dirs_all.append([root,d])
+                if(relpathdepth(root, os.path.join(root,d)) <= 2):
+                    dirs_l2.append([root,d])
+        for f in files:
+            if os.path.islink(os.path.join(root,f)) == False:
+                files_all.append([root,f])
+    return dirs_l2, dirs_all, files_all
+
+
 def dgrep(key, root, path):
-    if(relpathdepth(root, path) < 1):
+    if(relpathdepth(root, path) < 2):
         res = os.popen('rg -bn --max-depth 1 '+key+ ' "'+path+'"').readlines()
-    elif(relpathdepth(root, path) == 1):
+    elif(relpathdepth(root, path) == 2):
         res = os.popen('rg -bn '+key+ ' "'+path+'"').readlines()
     else:
-        pass
+        res = []
     return res
 
 def findkey(key, root, keyfile):
-    dirs, files = walkDir(root)
+    dirs_l2, dirs, files = walkDir(root)
     dirnum, filenum = len(dirs), len(files)
     print("total dirs count:", dirnum)
     print("total files count:", filenum)
+    print("total dirs_l2 count:", len(dirs_l2))
 
     print(color_str("find key in dir name", bcolors.OKGREEN))
     dirhit = []
@@ -91,7 +86,6 @@ def findkey(key, root, keyfile):
             filehit.append(files[i])
     print("find {} file, that has {} in its name".format(len(filehit), key))
 
-    dirs_l2 = listDir(root)
     print(color_str("find key in file text", bcolors.OKGREEN))
     texthit = []
     text = dgrep(key, root, root)
