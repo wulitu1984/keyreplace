@@ -47,7 +47,7 @@ def walkDir(path):
         for d in dirs:
             if os.path.islink(os.path.join(root,d)) == False:
                 dirs_all.append([root,d])
-                if(relpathdepth(root, os.path.join(root,d)) <= 2):
+                if(relpathdepth(path, os.path.join(root,d)) <= 2):
                     dirs_l2.append([root,d])
         for f in files:
             if os.path.islink(os.path.join(root,f)) == False:
