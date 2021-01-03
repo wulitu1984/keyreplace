@@ -30,7 +30,17 @@ def usage():
     print(color_str(usage_str, bcolors.OKGREEN))
 
 
-def countDir(path):
+def listDir(path):
+    dirs_all = []
+    dirs = os.listdir(path)
+    for d in dirs:
+        if((d.startswith('.') == False) and
+                (os.path.islink(os.path.join(path,d)) == False) and 
+                (os.path.isdir(os.path.join(path,d)) == True)):
+            dirs_all.append([path,d])
+    return dirs_all
+
+def walkDir(path):
     dirs_all = []
     files_all = []
     for root, dirs, files in os.walk(path):
@@ -49,19 +59,19 @@ def pathdepth(path):
     return len(a.split('/'))
 
 def relpathdepth(root, path):
-    return pathdepth(root)-pathdepth(path)
+    return pathdepth(path)-pathdepth(root)
 
 def dgrep(key, root, path):
-    if(relpathdepth(root, path) < 2):
+    if(relpathdepth(root, path) < 1):
         res = os.popen('rg -bn --max-depth 1 '+key+ ' "'+path+'"').readlines()
-    elif(relpathdepth(root, path) == 2):
-        res = os.popen('rg -bn '+key+ + ' "'+path+'"').readlines()
+    elif(relpathdepth(root, path) == 1):
+        res = os.popen('rg -bn '+key+ ' "'+path+'"').readlines()
     else:
         pass
     return res
 
 def findkey(key, root, keyfile):
-    dirs, files = countDir(root)
+    dirs, files = walkDir(root)
     dirnum, filenum = len(dirs), len(files)
     print("total dirs count:", dirnum)
     print("total files count:", filenum)
@@ -81,12 +91,13 @@ def findkey(key, root, keyfile):
             filehit.append(files[i])
     print("find {} file, that has {} in its name".format(len(filehit), key))
 
+    dirs_l2 = listDir(root)
     print(color_str("find key in file text", bcolors.OKGREEN))
     texthit = []
     text = dgrep(key, root, root)
     texthit.extend(text)
-    for i in tqdm(range(dirnum)): 
-        text = dgrep(key, root, os.path.join(dirs[i][0],dirs[i][1]))
+    for i in tqdm(range(len(dirs_l2))): 
+        text = dgrep(key, root, os.path.join(dirs_l2[i][0],dirs_l2[i][1]))
         texthit.extend(text)
     print("find {} lines, that has {} in its text".format(len(texthit), key))
 
