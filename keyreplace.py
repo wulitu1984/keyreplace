@@ -12,6 +12,13 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+def color_str(s, color):
+    return bcolors.OKGREEN + s +bcolors.ENDC 
+
+def rmEOL(s):
+    return s.replace('\n', '').replace('\r', '')
+
+
 def usage():
     usage_str = '''
         [Usage]: python3 keyreplace find key root keyfile
@@ -19,24 +26,10 @@ def usage():
                 1.find all keys and record them in keyfile
                 2.comment keys in keyfile that do not want to be replaced
                 3.replace keys accroding to keyfile
+
+        [Note]: do not support dir/file name with whitespace !
     '''
-
-    keyfile_str = '''
-        [keyfile format]: take 'tutu' as key for example
-                ;line start with ';' is a commment line
-
-                ;line start with 'dir:' is a dir that has key in its name
-                dir:cnt:path/tutu/
-
-                ;line start with 'file:' is a file that has key in its name
-                file:cnt:path/tutu/tutu.txt
-
-                ;line start with 'text:' is a key in file's content
-                text:cnt:path/tutu/tutu.txt:10(linenum):33(pos):'this is the line that contained tutu'
-    '''
-    print(bcolors.OKGREEN + usage_str +bcolors.ENDC)
-    print(bcolors.OKGREEN + keyfile_str +bcolors.ENDC)
-
+    print(color_str(usage_str, bcolors.OKGREEN))
 
 
 def countDir(path):
@@ -47,26 +40,27 @@ def countDir(path):
         dirs[:] = [d for d in dirs if not d[0] == '.']
         for d in dirs:
             if os.path.islink(os.path.join(root,d)) == False:
-                dirs_all.append(os.path.join(root,d))
+                dirs_all.append([root,d])
         for f in files:
             if os.path.islink(os.path.join(root,f)) == False:
-                files_all.append(os.path.join(root,f))
+                files_all.append([root,f])
     return dirs_all, files_all
 
-def pathdepth(root, path):
-    a = os.path.abspath(root)
-    b = os.path.abspath(path)
-    return len(a.split('/')) - len(b.split('/'))
+def pathdepth(path):
+    a = os.path.abspath(path)
+    return len(a.split('/'))
+
+def relpathdepth(root, path):
+    return pathdepth(root)-pathdepth(path)
 
 def dgrep(key, root, path):
-    if(pathdepth(root, path) < 2):
+    if(relpathdepth(root, path) < 2):
         res = os.popen('rg -bn --max-depth 1 '+key+ ' '+path).readlines()
-    elif(pathdepth(root, path) == 2):
+    elif(relpathdepth(root, path) == 2):
         res = os.popen('rg -bn '+key+ ' '+path).readlines()
     else:
         pass
     return res
-
 
 def findkey(key, root, keyfile):
     dirs, files = countDir(root)
@@ -74,36 +68,78 @@ def findkey(key, root, keyfile):
     print("total dirs count:", dirnum)
     print("total files count:", filenum)
 
-    print(bcolors.OKGREEN + "find key in dir name" +bcolors.ENDC)
+    print(color_str("find key in dir name", bcolors.OKGREEN))
     dirhit = []
     for i in tqdm(range(dirnum)): 
-        if(os.path.basename(dirs[i]).find(key) != -1):
+        if(dirs[i][1].find(key) != -1):
             dirhit.append(dirs[i])
     print("find {} dir, that has {} in its name".format(len(dirhit), key))
+    dirhit.sort(key=lambda elem: elem[0], reverse=False)
 
-    print(bcolors.OKGREEN + "find key in file name" +bcolors.ENDC)
+    print(color_str("find key in file name", bcolors.OKGREEN))
     filehit = []
     for i in tqdm(range(filenum)): 
-        if(os.path.basename(files[i]).find(key) != -1):
+        if(files[i][1].find(key) != -1):
             filehit.append(files[i])
     print("find {} file, that has {} in its name".format(len(filehit), key))
 
-    print(bcolors.OKGREEN + "find key in file text" +bcolors.ENDC)
+    print(color_str("find key in file text", bcolors.OKGREEN))
     texthit = []
     for i in tqdm(range(dirnum)): 
-        text = dgrep(key, root, dirs[i])
+        text = dgrep(key, root, os.path.join(dirs[i][0],dirs[i][1]))
         texthit.extend(text)
     print("find {} lines, that has {} in its text".format(len(texthit), key))
 
-    with open(keyfile, 'w+') as kf:
+    print("wirte result to keyfile:", keyfile)
+    with open(keyfile, 'w') as kf:
+        kf.write("config:{}\n".format(key))
+        kf.write("\n;find {} dir, that has {} in its name\n".format(len(dirhit), key))
         for i,d in enumerate(dirhit):
-            kf.write("dir:{}:{}\n".format(i,d))
+            kf.write("dir:{}:{}:{}\n".format(i,d[0],d[1]))
+        kf.write("\n;find {} file, that has {} in its name\n".format(len(filehit), key))
         for i,f in enumerate(filehit):
-            kf.write("file:{}:{}\n".format(i,f))
+            kf.write("file:{}:{}:{}\n".format(i,f[0],f[1]))
+        kf.write("\n;find {} lines, that has {} in its text\n".format(len(texthit), key))
         for i,t in enumerate(texthit):
-            kf.write("text:{}:{}\n".format(i,t))
+            kf.write("text:{}:{}\n".format(i,rmEOL(t)))
 
 
+def replacekey(key, root, keyfile):
+    old_key = ''
+    texthit = []
+    filehit = []
+    dirhit = []
+    with open(keyfile) as kf:
+        for line in kf.readlines():
+            if line.startswith("config:"):
+                old_key = rmEOL(line.split(':')[1])
+            elif line.startswith("dir:"):
+                _,_,root,d = line.split(':')
+                dirhit.append([root,rmEOL(d)])
+            elif line.startswith("file:"):
+                _,_,root,f = line.split(':')
+                filehit.append([root,rmEOL(f)])
+            elif line.startswith("text:"):
+                _,_,f,l = line.split(':')[0:4]
+                texthit.append([l,f])
+            else:
+                pass
+    #replace text first, then filename, finally dirname
+    print(color_str("replace key in file text", bcolors.OKGREEN))
+    for i in tqdm(range(len(texthit))): 
+        os.system("sed -i '{}s/{}/{}/g' {}".format(texthit[i][0],old_key,key,texthit[i][1]))
+
+    print(color_str("replace key in file name", bcolors.OKGREEN))
+    for i in tqdm(range(len(filehit))): 
+        os.system("mv {} {}".format(os.path.join(filehit[i][0],filehit[i][1]), 
+                                    os.path.join(filehit[i][0],filehit[i][1].replace(old_key,key))))
+
+    print(color_str("replace key in dir name[todo]", bcolors.FAIL))
+    #sort dirhit by path depth
+    dirhit.sort(key=lambda elem: elem[0], reverse=True)
+    for i in tqdm(range(len(dirhit))): 
+        os.system("mv {} {}".format(os.path.join(dirhit[i][0],dirhit[i][1]), 
+                                    os.path.join(dirhit[i][0],dirhit[i][1].replace(old_key,key))))
 
 
 if __name__ == "__main__":
@@ -115,8 +151,6 @@ if __name__ == "__main__":
     key = sys.argv[2]
     root = sys.argv[3]
     keyfile = sys.argv[4]
-    if os.path.exists(keyfile):
-        os.remove(keyfile)
 
     if op == 'find':
         findkey(key, root, keyfile)
