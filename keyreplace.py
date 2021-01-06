@@ -56,11 +56,15 @@ def walkDir(path):
 
 
 def dgrep(key, root, path):
-    if(relpathdepth(root, path) < 2):
-        res = os.popen('rg -bn --max-depth 1 '+key+ ' "'+path+'"').readlines()
-    elif(relpathdepth(root, path) == 2):
-        res = os.popen('rg -bn '+key+ ' "'+path+'"').readlines()
-    else:
+    try:
+        if(relpathdepth(root, path) < 2):
+            res = os.popen('rg -bn --max-depth 1 --max-columns 200 '+key+ ' "'+path+'"').readlines()
+        elif(relpathdepth(root, path) == 2):
+            res = os.popen('rg -bn --max-columns 200 '+key+ ' "'+path+'"').readlines()
+        else:
+            res = []
+    except:
+        print(color_str("err:dgrep err "+path, bcolors.FAIL))
         res = []
     return res
 
