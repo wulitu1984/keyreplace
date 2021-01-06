@@ -36,19 +36,35 @@ def pathdepth(path):
 def relpathdepth(root, path):
     return pathdepth(path)-pathdepth(root)
 
+def is_subdir(root,path):
+    absroot = os.path.abspath(root)
+    abspath = os.path.abspath(path)
+    return (os.path.samefile(os.path.commonprefix([absroot,abspath]),absroot))
 
-def walkDir(path):
+def walkDir(path, omits):
     dirs_all = []
     files_all = []
     dirs_l2 = []
     for root, dirs, files in os.walk(path):
+        omithit = False
+        for omit in omits:
+            if(is_subdir(omit, root)):
+                omithit = True
+        if omithit:
+            continue
+
         files = [f for f in files if not f[0] == '.']
         dirs[:] = [d for d in dirs if not d[0] == '.']
         for d in dirs:
             if os.path.islink(os.path.join(root,d)) == False:
-                dirs_all.append([root,d])
-                if(relpathdepth(path, os.path.join(root,d)) <= 2):
-                    dirs_l2.append([root,d])
+                omithit = False
+                for omit in omits:
+                    if(is_subdir(omit, os.path.join(root,d))):
+                        omithit = True
+                if not omithit:
+                    dirs_all.append([root,d])
+                    if(relpathdepth(path, os.path.join(root,d)) <= 2):
+                        dirs_l2.append([root,d])
         for f in files:
             if os.path.islink(os.path.join(root,f)) == False:
                 files_all.append([root,f])
@@ -68,8 +84,8 @@ def dgrep(key, root, path):
         res = []
     return res
 
-def findkey(key, root, keyfile):
-    dirs_l2, dirs, files = walkDir(root)
+def findkey(key, root, keyfile, omits):
+    dirs_l2, dirs, files = walkDir(root, omits)
     dirnum, filenum = len(dirs), len(files)
     print("total dirs count:", dirnum)
     print("total files count:", filenum)
@@ -152,7 +168,7 @@ def replacekey(key, root, keyfile):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
+    if len(sys.argv) < 5:
         usage()
         sys.exit()
 
@@ -160,9 +176,10 @@ if __name__ == "__main__":
     key = sys.argv[2]
     root = sys.argv[3]
     keyfile = sys.argv[4]
+    omits = sys.argv[5].split(';') if len(sys.argv) > 5 else []
 
     if op == 'find':
-        findkey(key, root, keyfile)
+        findkey(key, root, keyfile, omits)
     elif op == 'replace':
         replacekey(key, root, keyfile)
     else:
